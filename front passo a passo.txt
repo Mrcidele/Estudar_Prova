@@ -50,6 +50,7 @@ nome-do-seu-app/
 │   └── types/
 │       ├── produto.ts
 │       └── permissao.ts
+│       └── usuario.ts
 └── (outros arquivos do projeto como package.json, next.config.js, etc.)
 
 
