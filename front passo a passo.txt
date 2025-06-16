@@ -118,11 +118,14 @@ const api = axios.create({
 // 1. Interceptor para adicionar o token de autenticação.
 // Esta função intercepta cada requisição para adicionar o token, se ele existir.
 api.interceptors.request.use(
-  async (config) => {
+  (config) => {
     // Tenta obter o token do localStorage.
     const token = localStorage.getItem('authToken');
     if (token) {
       // Se o token existir, adiciona-o ao cabeçalho de autorização.
+      if (!config.headers) {
+        config.headers = {};
+      }
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
