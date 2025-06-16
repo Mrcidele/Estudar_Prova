@@ -727,9 +727,8 @@ Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
 usuario.http
 HTTP
 
-@url_base = http://localhost:5058/api/usuario
+@url_base = http://localhost:5000
 
-### 1. Cadastrar um usuário administrador
 POST {{url_base}}/cadastrar
 Content-Type: application/json
 
@@ -784,6 +783,7 @@ Content-Type: application/json
 DELETE {{url_base}}/2
 Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
 Para Rodar a Aplicação:
+
 
 Dentro da pasta API, execute:
 
