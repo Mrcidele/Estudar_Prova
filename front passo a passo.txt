@@ -1,0 +1,440 @@
+https://restcountries.com
+
+Criar Projeto
+npx create-next-app@latest revisao_paises_front --ts
+
+Configurar 
+
+PS C:\Users\extre> npx create-next-app@latest revisao_paises_front --ts
+√ Would you like to use ESLint? ... No 
+√ Would you like to use Tailwind CSS? ... No 
+√ Would you like your code inside a `src/` directory? ... Yes
+√ Would you like to use App Router? (recommended) ...  Yes
+√ Would you like to use Turbopack for `next dev`? ... Yes
+√ Would you like to customize the import alias (`@/*` by default)? ... No 
+
+Instalar o Axios e bibliote para o projeto
+
+npm install
+npm i axios @types/axios
+npm install @mui/material @emotion/react @emotion/styled
+npm install @fontsource/roboto
+npm install axios
+
+Adicionar no layout.tsx nos imports isso: //so se precisar
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
+
+3. Estrutura de Pastas e Arquivos
+Organize seu projeto criando as seguintes pastas e arquivos dentro do diretório src/ para manter o código limpo e escalável.
+
+Aqui está a estrutura que você deve ter:
+
+nome-do-seu-app/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── globals.css
+│   │   ├── page.tsx
+│   │   ├── page.module.css
+│   │   ├── produto/
+│   │   │   └── listar/
+│   │   │       └── page.tsx
+│   │   └── usuario/
+│   │       └── login/
+│   │           └── page.tsx
+│   ├── services/
+│   │   └── api.ts
+│   └── types/
+│       ├── produto.ts
+│       └── permissao.ts
+└── (outros arquivos do projeto como package.json, next.config.js, etc.)
+
+
+4. Definir Tipos (TypeScript)
+Crie os arquivos TypeScript que definem as estruturas de dados para sua aplicação.
+
+src/types/permissao.ts**
+Este arquivo definirá o tipo Permissao.
+
+TypeScript
+
+// src/types/permissao.ts
+
+// Define os valores exatos que a propriedade 'permissao' pode ter.
+// Isso garante que você não possa atribuir um valor inválido por engano no seu código.
+export type Permissao = 'usuario' | 'administrador';
+
+src/types/produto.ts
+Este arquivo definirá a interface Produto.
+
+TypeScript
+
+// src/types/produto.ts**
+
+export interface Produto {
+    id: number;
+    nome: string;
+    criadoEm: string;
+}
+src/types/usuario.ts
+Este arquivo definirá a interface Usuario.
+
+TypeScript
+
+// src/types/usuario.ts**
+
+// Importa o tipo Permissao para ser usado na interface
+import { Permissao } from './permissao';
+
+export interface Usuario {
+  id: number;
+  email: string;
+  senha?: string;
+  permissao: Permissao;
+
+  // Mantido como string para ser consistente com sua interface 'Produto'.
+  criadoEm: string;
+}
+
+5. Configurar o Cliente API (Axios)
+Este arquivo configura o Axios para se comunicar com sua API de backend, incluindo um interceptor para adicionar um token de autenticação às requisições.
+
+src/services/api.ts
+TypeScript
+
+// src/services/api.ts
+
+import axios from 'axios';
+
+const api = axios.create({
+  // Endereço correto da sua API backend, conforme `launchSettings.json`.
+  baseURL: 'http://localhost:5058/api',
+});
+
+// 1. Interceptor para adicionar o token de autenticação.
+// Esta função intercepta cada requisição para adicionar o token, se ele existir.
+api.interceptors.request.use(
+  async (config) => {
+    // Tenta obter o token do localStorage.
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      // Se o token existir, adiciona-o ao cabeçalho de autorização.
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    // Em caso de erro na configuração da requisição, rejeita a promise.
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+6. Configurar a Página Inicial
+Para este exemplo, faremos com que a página raiz (/) redirecione para a página de login inicialmente.
+
+src/app/page.tsx
+TypeScript
+
+// src/app/page.tsx
+
+import Login from "./usuario/login/page";
+
+export default function Home() {
+  return (
+    <div>
+      <Login></Login>
+    </div>
+  );
+}
+7. Criar a Página de Listagem de Produtos
+Esta página buscará os dados dos produtos da API e os exibirá em formato de tabela. Ela incluirá funcionalidades de criação, edição e exclusão de produtos, acessíveis apenas a administradores.
+
+src/app/produto/listar/page.tsx
+TypeScript
+
+// src/app/produto/listar/page.tsx
+
+'use client';
+
+import { useEffect, useState } from 'react';
+import api from '@/services/api';
+import { Produto } from '@/types/produto';
+import { useRouter } from 'next/navigation';
+
+export default function ListarProdutos() {
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [permissao, setPermissao] = useState<string | null>(null);
+  const router = useRouter();
+
+  // --- State para o Modal de Edição/Criação ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduto, setEditingProduto] = useState<Produto | null>(null);
+  const [nomeProduto, setNomeProduto] = useState('');
+  // ---------------------------------------------
+
+  // Função para buscar os produtos da API
+  const fetchProdutos = async () => {
+    try {
+      const response = await api.get('/produto/listar');
+      setProdutos(response.data);
+    } catch (error) {
+      console.error('Erro ao buscar produtos:', error);
+      // Redireciona para o login se não autorizado ou se ocorrer um erro
+      router.push('/usuario/login');
+    }
+  };
+
+  // Efeito para buscar a permissão do usuário e os produtos ao montar o componente
+  useEffect(() => {
+    const userPermission = localStorage.getItem('userPermission');
+    setPermissao(userPermission);
+    fetchProdutos();
+  }, []); // Executa apenas uma vez
+
+  const isAdmin = permissao === 'administrador';
+
+  // --- Funções do CRUD ---
+
+  const handleOpenCreateModal = () => {
+    setEditingProduto(null);
+    setNomeProduto('');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (produto: Produto) => {
+    setEditingProduto(produto);
+    setNomeProduto(produto.nome);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleSave = async () => {
+    if (!nomeProduto.trim()) {
+      alert('O nome do produto não pode estar vazio.');
+      return;
+    }
+
+    try {
+      if (editingProduto) {
+        // Atualizar (PUT)
+        await api.put(`/produto/${editingProduto.id}`, { nome: nomeProduto });
+      } else {
+        // Cadastrar (POST)
+        await api.post('/produto/cadastrar', { nome: nomeProduto });
+      }
+      handleCloseModal();
+      fetchProdutos(); // Recarrega a lista para mostrar as mudanças
+    } catch (error) {
+      console.error('Erro ao salvar produto:', error);
+      alert('Falha ao salvar o produto. Verifique o console para mais detalhes.');
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('Tem certeza que deseja deletar este produto?')) {
+      try {
+        await api.delete(`/produto/${id}`);
+        fetchProdutos(); // Recarrega a lista
+      } catch (error) {
+        console.error('Erro ao deletar produto:', error);
+        alert('Falha ao deletar o produto.');
+      }
+    }
+  };
+
+  return (
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Lista de Produtos</h1>
+        {isAdmin && (
+          <button
+            onClick={handleOpenCreateModal}
+            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Cadastrar Novo Produto
+          </button>
+        )}
+      </div>
+
+      {/* Tabela de Produtos */}
+      <table className="min-w-full bg-white border">
+        <thead>
+          <tr>
+            <th className="py-2 px-4 border-b">Nome</th>
+            <th className="py-2 px-4 border-b">Criado Em</th>
+            {isAdmin && <th className="py-2 px-4 border-b">Ações</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {produtos.map((produto) => (
+            <tr key={produto.id}>
+              <td className="py-2 px-4 border-b">{produto.nome}</td>
+              <td className="py-2 px-4 border-b">{new Date(produto.criadoEm).toLocaleDateString()}</td>
+              {isAdmin && (
+                <td className="py-2 px-4 border-b text-center">
+                  <button
+                    onClick={() => handleOpenEditModal(produto)}
+                    className="bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-1 px-2 rounded mr-2"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleDelete(produto.id)}
+                    className="bg-red-500 hover:bg-red-700 text-white text-sm font-bold py-1 px-2 rounded"
+                  >
+                    Deletar
+                  </button>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Modal de Criação/Edição */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+          <div className="bg-white p-6 rounded shadow-lg w-96">
+            <h2 className="text-xl font-bold mb-4">
+              {editingProduto ? 'Editar Produto' : 'Cadastrar Produto'}
+            </h2>
+            <div className="mb-4">
+              <label htmlFor="nome" className="block text-sm font-bold mb-2">Nome do Produto</label>
+              <input
+                id="nome"
+                type="text"
+                value={nomeProduto}
+                onChange={(e) => setNomeProduto(e.target.value)}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700"
+              />
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={handleCloseModal}
+                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+8. Criar a Página de Login
+Este arquivo conterá o formulário de login. A lógica de autenticação (envio de dados para a API e armazenamento do token) será tratada aqui.
+
+src/app/usuario/login/page.tsx
+TypeScript
+
+// src/app/usuario/login/page.tsx
+
+'use client';
+
+import { useState } from 'react';
+import api from '@/services/api';
+import { useRouter } from 'next/navigation';
+import { Permissao } from '@/types/permissao'; // Importa o tipo Permissao
+
+interface LoginResponse {
+  token: string;
+  permissao: Permissao;
+}
+
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [error, setError] = useState('');
+  const router = useRouter();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      const response = await api.post<LoginResponse>('/usuario/login', { email, senha });
+
+      const { token, permissao } = response.data;
+
+      if (token && permissao) {
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('userPermission', permissao);
+
+
+        router.push('/produto/listar');
+
+      } else {
+        throw new Error('Resposta inválida da API.');
+      }
+
+    } catch (err) {
+      setError('Login falhou. Verifique suas credenciais ou contate o suporte.');
+      console.error('Falha no login', err);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <form onSubmit={handleLogin} className="bg-white p-6 rounded shadow-md w-80">
+        <h1 className="text-2xl font-bold mb-4">Login</h1>
+        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        <div className="mb-4">
+          <label className="block text-sm font-bold mb-2" htmlFor="email">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700"
+            required
+          />
+        </div>
+        <div className="mb-6">
+          <label className="block text-sm font-bold mb-2" htmlFor="password">
+            Senha
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={senha}
+            onChange={(e) => setSenha(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full"
+        >
+          Entrar
+        </button>
+      </form>
+    </div>
+  );
+}
+9. Rodar a Aplicação
+Com sua API de backend em execução (certifique-se de que o endereço dela corresponde ao baseURL em src/services/api.ts), inicie o servidor de desenvolvimento do Next.js.
+
+No diretório raiz do seu projeto (nome-do-seu-app), execute:
+
+Bash
+
+npm run dev
+Sua aplicação Next.js agora deve estar em execução, geralmente acessível em http://localhost:3000. Você pode testar as funcionalidades de login e listagem de produtos com sua API de backend.
+

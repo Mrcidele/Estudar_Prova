@@ -1,0 +1,793 @@
+Passo 0: Gerar Chave Secreta para JWT (PowerShell)
+Uma chave secreta forte é crucial para a segurança do JWT (JSON Web Token). Use o seguinte comando no PowerShell para gerar uma:
+
+PowerShell:
+
+PowerShell
+
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Minimum 0 -Maximum 256 }))
+Exemplo de chave gerada (guarde a sua própria para usar no appsettings.json):
+
+ZGVzZW52b2x2aW1lbnRvLWRlLXNpc3RlbWFzLWNvbS1kb3RuZXQ=
+Passo 1: Criar Projeto Web API
+Crie um novo projeto de Web API .NET 8. O nome do projeto no repositório é API.
+
+Bash (no seu terminal):
+
+Bash
+
+dotnet new webapi -n API --no-https --use-controllers
+Onde Criar: Execute este comando na pasta onde você deseja que o diretório API seja criado.
+
+Passo 2: Limpeza Inicial (Opcional)
+Remova os arquivos de exemplo que não serão utilizados neste projeto para manter o código limpo.
+
+Bash (dentro da pasta do projeto API):
+
+Bash
+
+del Controllers/WeatherForecastController.cs
+del WeatherForecast.cs
+Observação para Linux/macOS: Use rm em vez de del. Ex: rm Controllers/WeatherForecastController.cs
+Passo 3: Instalar Pacotes NuGet Necessários
+Instale as bibliotecas necessárias para Entity Framework Core, MySQL, Swagger, JWT Authentication e CORS.
+
+Bash (dentro da pasta do projeto API):
+
+Bash
+
+dotnet add package Microsoft.EntityFrameworkCore --version 8
+dotnet add package Microsoft.EntityFrameworkCore.Design --version 8
+dotnet add package Microsoft.EntityFrameworkCore.Tools --version 8
+dotnet add package Pomelo.EntityFrameworkCore.MySql --version 8
+dotnet add package Swashbuckle.AspNetCore.SwaggerGen
+dotnet add package Swashbuckle.AspNetCore.SwaggerUI
+dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer --version 8
+dotnet add package Swashbuckle.AspNetCore
+dotnet add package Microsoft.AspNetCore.Cors
+Instalar/Atualizar a ferramenta global dotnet-ef:
+
+Esta ferramenta é essencial para gerenciar migrações do Entity Framework Core.
+
+Bash (em qualquer local do terminal, pois é uma ferramenta global):
+
+Bash
+
+dotnet tool install --global dotnet-ef
+# Ou para atualizar, se já tiver instalado:
+dotnet tool update --global dotnet-ef
+Limpar, restaurar e construir o projeto:
+
+Após instalar os pacotes, é uma boa prática limpar, restaurar as dependências e construir o projeto.
+
+Bash (dentro da pasta do projeto API):
+
+Bash
+
+dotnet clean
+dotnet restore
+dotnet build
+Passo 4: Definir Classes de Modelo (Entidades)
+Crie uma pasta chamada Models dentro do seu projeto API. Esta pasta conterá as classes que representam as tabelas do seu banco de dados.
+
+Estrutura da Pasta Models:
+
+API/
+└── Models/
+    ├── Produto.cs
+    ├── Usuario.cs
+    └── Permissao.cs
+Models/Produto.cs
+C#
+
+// API/Models/Produto.cs
+
+using System;
+
+namespace API.Models;
+
+public class Produto
+{
+    public int Id { get; set; }
+    public string Nome { get; set; } = string.Empty;
+    public DateTime CriadoEm { get; set; } = DateTime.Now;
+}
+Models/Usuario.cs
+C#
+
+// API/Models/Usuario.cs
+
+using System;
+
+namespace API.Models;
+
+public class Usuario
+{
+    public int Id { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string Senha { get; set; } = string.Empty;
+    public Permissao Permissao { get; set; } = Permissao.usuario; // Ajustado para padrão 'usuario'
+    public DateTime CriadoEm { get; set; } = DateTime.Now;
+}
+Models/Permissao.cs
+C#
+
+// API/Models/Permissao.cs
+
+namespace API.Models;
+
+public enum Permissao
+{
+    usuario,
+    administrador
+}
+Passo 5: Criar o Contexto de Dados (AppDataContext)
+Crie uma pasta chamada Data dentro do seu projeto API. Esta pasta conterá a classe de contexto do Entity Framework Core.
+
+Estrutura da Pasta Data:
+
+API/
+└── Data/
+    └── AppDataContext.cs
+Data/AppDataContext.cs
+C#
+
+// API/Data/AppDataContext.cs
+
+using API.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace API.Data;
+
+public class AppDataContext : DbContext
+{
+    public AppDataContext(DbContextOptions options) :
+        base(options) { }
+
+    public DbSet<Produto> Produtos { get; set; }
+    public DbSet<Usuario> Usuarios { get; set; }
+}
+Passo 6: Criar Repositórios (Padrão Repository)
+Dentro da pasta Data, crie as interfaces e as classes de repositório para Produto e Usuario. Isso ajuda a desacoplar a lógica de acesso a dados dos controllers.
+
+Estrutura da Pasta Data (com repositórios):
+
+API/
+└── Data/
+    ├── AppDataContext.cs
+    ├── IProdutoRepository.cs
+    ├── ProdutoRepository.cs
+    ├── IUsuarioRepository.cs
+    └── UsuarioRepository.cs
+Data/IProdutoRepository.cs
+C#
+
+// API/Data/IProdutoRepository.cs
+
+using API.Models;
+using System.Collections.Generic;
+
+namespace API.Data;
+
+public interface IProdutoRepository
+{
+    void Cadastrar(Produto produto);
+    List<Produto> Listar();
+    Produto? BuscarPorId(int id);
+    void Atualizar(Produto produto);
+    void Deletar(int id);
+}
+Data/ProdutoRepository.cs
+C#
+
+// API/Data/ProdutoRepository.cs
+
+using API.Models;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace API.Data;
+
+public class ProdutoRepository : IProdutoRepository
+{
+    private readonly AppDataContext _context;
+    public ProdutoRepository(AppDataContext context)
+    {
+        _context = context;
+    }
+
+    public void Cadastrar(Produto produto)
+    {
+        _context.Produtos.Add(produto);
+        _context.SaveChanges();
+    }
+
+    public List<Produto> Listar()
+    {
+        return _context.Produtos.ToList();
+    }
+
+    public Produto? BuscarPorId(int id)
+    {
+        return _context.Produtos.Find(id);
+    }
+
+    public void Atualizar(Produto produto)
+    {
+        _context.Produtos.Update(produto);
+        _context.SaveChanges();
+    }
+
+    public void Deletar(int id)
+    {
+        var produto = _context.Produtos.Find(id);
+        if (produto != null)
+        {
+            _context.Produtos.Remove(produto);
+            _context.SaveChanges();
+        }
+    }
+}
+Data/IUsuarioRepository.cs
+C#
+
+// API/Data/IUsuarioRepository.cs
+
+using API.Models;
+using System.Collections.Generic;
+
+namespace API.Data;
+
+public interface IUsuarioRepository
+{
+    void Cadastrar(Usuario usuario);
+    List<Usuario> Listar();
+    Usuario? BuscarPorId(int id);
+    Usuario? BuscarPorEmail(string email);
+    Usuario? BuscarUsuarioPorEmailSenha(string email, string senha);
+    void Atualizar(Usuario usuario);
+    void Deletar(int id);
+}
+Data/UsuarioRepository.cs
+C#
+
+// API/Data/UsuarioRepository.cs
+
+using API.Models;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace API.Data;
+
+public class UsuarioRepository : IUsuarioRepository
+{
+    private readonly AppDataContext _context;
+    public UsuarioRepository(AppDataContext context)
+    {
+        _context = context;
+    }
+
+    public void Cadastrar(Usuario usuario)
+    {
+        _context.Usuarios.Add(usuario);
+        _context.SaveChanges();
+    }
+
+    public List<Usuario> Listar()
+    {
+        return _context.Usuarios.ToList();
+    }
+
+    public Usuario? BuscarUsuarioPorEmailSenha(string email, string senha)
+    {
+        return _context.Usuarios.FirstOrDefault(x => x.Email == email && x.Senha == senha);
+    }
+
+    public Usuario? BuscarPorId(int id)
+    {
+        return _context.Usuarios.Find(id);
+    }
+
+    public Usuario? BuscarPorEmail(string email)
+    {
+        return _context.Usuarios.FirstOrDefault(x => x.Email == email);
+    }
+
+    public void Atualizar(Usuario usuario)
+    {
+        _context.Usuarios.Update(usuario);
+        _context.SaveChanges();
+    }
+
+    public void Deletar(int id)
+    {
+        var usuario = _context.Usuarios.Find(id);
+        if (usuario != null)
+        {
+            _context.Usuarios.Remove(usuario);
+            _context.SaveChanges();
+        }
+    }
+}
+Passo 7: Configurar appsettings.json
+Adicione a string de conexão com o MySQL e as configurações do JWT.
+
+appsettings.json (no diretório raiz do projeto API):
+
+JSON
+
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "MySQL" : "server=localhost;port=3307;database=Ecommerce;user=root;password="
+  },
+  "JwtSettings" : {
+    "SecretKey" : "SUA_CHAVE_SECRETA_GERADA_AQUI"
+  }
+}
+Atenção:
+
+Substitua "SUA_CHAVE_SECRETA_GERADA_AQUI" pela chave gerada no Passo 0.
+Certifique-se de que o nome do banco (database=Ecommerce), a porta (port=3307), usuário (user=root) e senha (password=) estão corretos para a sua instalação MySQL.
+Importante: Crie o banco de dados Ecommerce no seu MySQL ANTES de aplicar as migrations. Você pode fazer isso com um comando SQL simples: CREATE DATABASE Ecommerce;
+Passo 8: Criar Controllers
+Crie as classes de controller na pasta Controllers do seu projeto API.
+
+Estrutura da Pasta Controllers:
+
+API/
+└── Controllers/
+    ├── ProdutoController.cs
+    └── UsuarioController.cs
+Controllers/ProdutoController.cs
+C#
+
+// API/Controllers/ProdutoController.cs
+
+using API.Data;
+using API.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace API.Controllers;
+
+[ApiController]
+[Route("api/produto")]
+[Authorize] // Protege todos os endpoints por padrão
+public class ProdutoController : ControllerBase
+{
+    private readonly IProdutoRepository _produtoRepository;
+    public ProdutoController(IProdutoRepository produtoRepository)
+    {
+        _produtoRepository = produtoRepository;
+    }
+
+    [HttpGet("listar")]
+    public IActionResult Listar()
+    {
+        return Ok(_produtoRepository.Listar());
+    }
+
+    [HttpGet("{id}")]
+    public IActionResult Buscar([FromRoute] int id)
+    {
+        var produto = _produtoRepository.BuscarPorId(id);
+        return produto != null ? Ok(produto) : NotFound();
+    }
+
+    [HttpPost("cadastrar")]
+    [Authorize(Roles = "administrador")]
+    public IActionResult Cadastrar([FromBody] Produto produto)
+    {
+        _produtoRepository.Cadastrar(produto);
+        return Created("", produto);
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Roles = "administrador")]
+    public IActionResult Atualizar([FromRoute] int id, [FromBody] Produto produto)
+    {
+        var produtoExistente = _produtoRepository.BuscarPorId(id);
+        if (produtoExistente == null)
+        {
+            return NotFound();
+        }
+
+        produtoExistente.Nome = produto.Nome;
+        _produtoRepository.Atualizar(produtoExistente);
+
+        return Ok(produtoExistente);
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "administrador")]
+    public IActionResult Deletar([FromRoute] int id)
+    {
+        var produto = _produtoRepository.BuscarPorId(id);
+        if (produto == null)
+        {
+            return NotFound();
+        }
+        _produtoRepository.Deletar(id);
+        return Ok(new { message = "Produto deletado com sucesso!" });
+    }
+}
+Controllers/UsuarioController.cs
+C#
+
+// API/Controllers/UsuarioController.cs
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using API.Models;
+using API.Data;
+using System.Security.Claims;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.IdentityModel.Tokens.Jwt;
+
+namespace API.Controllers;
+
+[ApiController]
+[Route("api/usuario")]
+public class UsuarioController : ControllerBase
+{
+    private readonly IUsuarioRepository _usuarioRepository;
+    private readonly IConfiguration _configuration;
+
+    public UsuarioController(IUsuarioRepository usuarioRepository, IConfiguration configuration)
+    {
+        _usuarioRepository = usuarioRepository;
+        _configuration = configuration;
+    }
+
+    [HttpPost("cadastrar")]
+    [AllowAnonymous]
+    public IActionResult Cadastrar([FromBody] Usuario usuario)
+    {
+        if (_usuarioRepository.BuscarPorEmail(usuario.Email) != null)
+        {
+            return BadRequest("Este e-mail já está em uso.");
+        }
+        _usuarioRepository.Cadastrar(usuario);
+        return Created("", usuario);
+    }
+
+    [HttpPost("login")]
+    [AllowAnonymous]
+    public IActionResult Login([FromBody] Usuario usuario)
+    {
+        Usuario? usuarioExistente = _usuarioRepository.BuscarUsuarioPorEmailSenha(usuario.Email, usuario.Senha);
+        if (usuarioExistente == null)
+        {
+            return Unauthorized(new { mensagem = "Usuário ou senha inválidos!" });
+        }
+
+        string token = GerarToken(usuarioExistente);
+
+        return Ok(new
+        {
+            token = token,
+            permissao = usuarioExistente.Permissao.ToString().ToLower()
+        });
+    }
+
+    [HttpGet("listar")]
+    [Authorize(Roles = "administrador")]
+    public IActionResult Listar()
+    {
+        return Ok(_usuarioRepository.Listar());
+    }
+
+    [HttpGet("{id}")]
+    [Authorize(Roles = "administrador")]
+    public IActionResult Buscar([FromRoute] int id)
+    {
+        var usuario = _usuarioRepository.BuscarPorId(id);
+        return usuario != null ? Ok(usuario) : NotFound();
+    }
+
+    [HttpPut("{id}")]
+    [Authorize]
+    public IActionResult Atualizar([FromRoute] int id, [FromBody] Usuario usuario)
+    {
+        var usuarioLogadoEmail = User.Identity?.Name;
+        var usuarioLogadoRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        var usuarioExistente = _usuarioRepository.BuscarPorId(id);
+        if (usuarioExistente == null)
+        {
+            return NotFound();
+        }
+
+        // Permite que um administrador edite qualquer usuário ou que um usuário edite a si mesmo
+        if (usuarioExistente.Email != usuarioLogadoEmail && usuarioLogadoRole != "administrador")
+        {
+            return Forbid(); // Proíbe o acesso se não for o próprio usuário ou um administrador
+        }
+
+        // IMPORTANTE: Não permita que usuários comuns alterem a permissão ou a senha de outros usuários
+        // Se você não quer que a senha seja atualizada assim, remova ou adicione validação
+        usuarioExistente.Email = usuario.Email;
+        // usuarioExistente.Senha = usuario.Senha; // Descomente se quiser permitir atualização de senha aqui
+
+        _usuarioRepository.Atualizar(usuarioExistente);
+        return Ok(usuarioExistente);
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "administrador")]
+    public IActionResult Deletar([FromRoute] int id)
+    {
+        var usuario = _usuarioRepository.BuscarPorId(id);
+        if (usuario == null)
+        {
+            return NotFound();
+        }
+        _usuarioRepository.Deletar(id);
+        return Ok(new { message = "Usuário deletado com sucesso!" });
+    }
+
+    [ApiExplorerSettings(IgnoreApi = true)] // Oculta este método do Swagger
+    public string GerarToken(Usuario usuario)
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, usuario.Email),
+            new Claim(ClaimTypes.Role, usuario.Permissao.ToString()) // Adiciona a permissão como um Claim de Role
+        };
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JwtSettings:SecretKey"]!));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            claims: claims,
+            expires: DateTime.Now.AddHours(8), // Token expira em 8 horas
+            signingCredentials: creds
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+}
+Passo 9: Configurar Program.cs
+Este é o arquivo principal de configuração da sua API. Ele define como os serviços são injetados e como o pipeline de requisições HTTP é construído.
+
+Program.cs (no diretório raiz do projeto API):
+
+C#
+
+// API/Program.cs
+
+using System.Text;
+using API.Data;
+using API.Models; // Importa o namespace Models
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models; // Necessário para a configuração de segurança do Swagger
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Adiciona serviços ao contêiner.
+
+builder.Services.AddControllers();
+// Configura o Swagger/OpenAPI para documentação da API
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    // Adiciona o suporte a autenticação por JWT no Swagger UI
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header usando o esquema Bearer. Ex: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] { }
+        }
+    });
+});
+
+// Configura o CORS para permitir requisições de qualquer origem
+builder.Services.AddCors(options =>
+    options.AddPolicy("Acesso total",
+        configs => configs
+            .AllowAnyOrigin() // Permite requisições de qualquer origem
+            .AllowAnyHeader() // Permite qualquer cabeçalho na requisição
+            .AllowAnyMethod()) // Permite qualquer método HTTP (GET, POST, PUT, DELETE, etc.)
+);
+
+// Obtém a string de conexão do appsettings.json
+var connectionString = builder.Configuration.GetConnectionString("MySQL");
+
+// Configura o DbContext para usar MySQL com Entity Framework Core
+builder.Services.AddDbContext<AppDataContext>
+    (options => options.UseMySql(connectionString,
+    ServerVersion.AutoDetect(connectionString)));
+
+// Registra os repositórios para injeção de dependência
+builder.Services.AddScoped<IProdutoRepository, ProdutoRepository>();
+builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
+
+// Obtém a chave secreta do JWT do appsettings.json
+var chaveJwt = builder.Configuration["JwtSettings:SecretKey"];
+
+// Configura a autenticação JWT Bearer
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false, // Não valida o emissor (issuer) do token
+            ValidateAudience = false, // Não valida o público (audience) do token
+            ValidateLifetime = true, // Valida o tempo de vida do token
+            ClockSkew = TimeSpan.Zero, // O tempo de tolerância para expiração é zero
+            ValidateIssuerSigningKey = true, // Valida a chave de assinatura do emissor
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(chaveJwt!)) // Usa a chave secreta para validação
+        };
+    });
+
+// Adiciona serviços de autorização
+builder.Services.AddAuthorization();
+
+var app = builder.Build();
+
+// Configura o pipeline de requisições HTTP.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger(); // Habilita o middleware do Swagger
+    app.UseSwaggerUI(); // Habilita o Swagger UI
+}
+
+app.UseCors("Acesso total"); // Aplica a política CORS
+app.UseAuthentication(); // Habilita o middleware de autenticação
+app.UseAuthorization(); // Habilita o middleware de autorização
+
+app.MapControllers(); // Mapeia os controllers para as rotas HTTP
+
+app.Run(); // Inicia a aplicação
+Passo 10: Criar e Aplicar Migrations
+Agora que o contexto de dados está configurado, você pode criar as migrações para gerar o esquema do banco de dados e aplicá-las.
+
+Bash (dentro da pasta do projeto API):
+
+Bash
+
+dotnet ef migrations add Inicial
+dotnet ef database update
+Certifique-se de que o banco de dados Ecommerce já foi criado no MySQL antes de executar dotnet ef database update.
+Passo 11: Testes
+Use os arquivos .http para testar sua API. Você pode usar extensões como "REST Client" no VS Code para isso. Crie os arquivos produto.http e usuario.http na raiz do seu projeto ou em uma pasta http/.
+
+Estrutura dos arquivos de teste (exemplo):
+
+API/
+├── produto.http
+└── usuario.http
+produto.http
+HTTP
+
+@url_base = http://localhost:5058/api/produto
+
+### 1. Cadastrar um novo produto (Requer Admin)
+# Você precisa primeiro fazer o login no arquivo usuario.http,
+# copiar o token e colar aqui.
+POST {{url_base}}/cadastrar
+Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
+Content-Type: application/json
+
+{
+    "nome" : "Bolacha Trakinas"
+}
+
+### 2. Listar todos os produtos (Requer Autenticação)
+# Cole o token aqui também.
+GET {{url_base}}/listar
+Authorization: Bearer SEU_TOKEN_AQUI
+
+### 3. Buscar produto por ID (Requer Autenticação)
+# Altere o '1' e cole o token.
+GET {{url_base}}/1
+Authorization: Bearer SEU_TOKEN_AQUI
+
+### 4. Atualizar um produto (Requer Admin)
+# Altere o '1' e cole o token.
+PUT {{url_base}}/1
+Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
+Content-Type: application/json
+
+{
+    "nome" : "Bolacha Trakinas de Chocolate"
+}
+
+### 5. Deletar um produto (Requer Admin)
+# Altere o '1' e cole o token.
+DELETE {{url_base}}/1
+Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
+usuario.http
+HTTP
+
+@url_base = http://localhost:5058/api/usuario
+
+### 1. Cadastrar um usuário administrador
+POST {{url_base}}/cadastrar
+Content-Type: application/json
+
+{
+    "email" : "admin@email.com",
+    "senha" : "123",
+    "permissao": 1
+}
+
+### 2. Cadastrar um usuário comum
+POST {{url_base}}/cadastrar
+Content-Type: application/json
+
+{
+    "email" : "usuario@email.com",
+    "senha" : "456",
+    "permissao": 0
+}
+
+### 3. Fazer login
+# Depois de enviar esta requisição, copie o token da resposta.
+POST {{url_base}}/login
+Content-Type: application/json
+
+{
+    "email" : "admin@email.com",
+    "senha" : "123"
+}
+
+### 4. Listar todos os usuários (Requer Admin)
+# Cole o token que você copiou do login aqui embaixo.
+GET {{url_base}}/listar
+Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
+
+### 5. Buscar usuário por ID (Requer Admin)
+# Altere o '1' e cole o token.
+GET {{url_base}}/1
+Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
+
+### 6. Atualizar um usuário (Requer Admin ou o próprio usuário)
+# Altere o '2' e cole o token.
+PUT {{url_base}}/2
+Authorization: Bearer SEU_TOKEN_AQUI
+Content-Type: application/json
+
+{
+    "email" : "usuario.novo@email.com"
+}
+
+### 7. Deletar um usuário (Requer Admin)
+# Altere o '2' e cole o token.
+DELETE {{url_base}}/2
+Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
+Para Rodar a Aplicação:
+
+Dentro da pasta API, execute:
+
+Bash
+
+dotnet run
+Sua API estará acessível em http://localhost:5058 (ou a porta configurada no launchSettings.json se você não usou --no-https). Você pode acessar a documentação do Swagger UI em http://localhost:5058/swagger.
