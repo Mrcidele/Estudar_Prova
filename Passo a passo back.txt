@@ -727,13 +727,13 @@ Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
 usuario.http
 HTTP
 
-@url_base = http://localhost:5000
+@url_base = http://localhost:5240/api/usuario
 
 POST {{url_base}}/cadastrar
 Content-Type: application/json
 
 {
-    "email" : "admin@email.com",
+    "email" : "admin1@email.com",
     "senha" : "123",
     "permissao": 1
 }
@@ -761,17 +761,17 @@ Content-Type: application/json
 ### 4. Listar todos os usuários (Requer Admin)
 # Cole o token que você copiou do login aqui embaixo.
 GET {{url_base}}/listar
-Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
+Authorization: Bearer 868+6kcZJrbSS8Kif9qMIM35MceJLCF1rtN8Ejrfm/Q=
 
 ### 5. Buscar usuário por ID (Requer Admin)
 # Altere o '1' e cole o token.
 GET {{url_base}}/1
-Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
+Authorization: Bearer 868+6kcZJrbSS8Kif9qMIM35MceJLCF1rtN8Ejrfm/Q=
 
 ### 6. Atualizar um usuário (Requer Admin ou o próprio usuário)
 # Altere o '2' e cole o token.
 PUT {{url_base}}/2
-Authorization: Bearer SEU_TOKEN_AQUI
+Authorization: Bearer 868+6kcZJrbSS8Kif9qMIM35MceJLCF1rtN8Ejrfm/Q=
 Content-Type: application/json
 
 {
@@ -781,7 +781,7 @@ Content-Type: application/json
 ### 7. Deletar um usuário (Requer Admin)
 # Altere o '2' e cole o token.
 DELETE {{url_base}}/2
-Authorization: Bearer SEU_TOKEN_ADMIN_AQUI
+Authorization: Bearer 868+6kcZJrbSS8Kif9qMIM35MceJLCF1rtN8Ejrfm/Q=
 Para Rodar a Aplicação:
 
 
